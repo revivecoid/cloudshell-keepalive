@@ -2,21 +2,25 @@ name: Cloud Shell Keep-Alive
 
 on:
   schedule:
-    - cron: '*/10 * * * *'   # every 10 minutes
-  workflow_dispatch:           # manual trigger
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
 
 jobs:
-  ping:
+  keepalive:
     runs-on: ubuntu-latest
     steps:
-      - name: Ping Hermes Dashboard
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Setup gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Ping Cloud Shell via SSH
         run: |
-          STATUS=$(curl -sf -o /dev/null -w "%{http_code}" \
-            "https://8080-cs-03795caa-1265-4dee-b9fd-52dffe56c3a5.cs-asia-southeast1-fork.cloudshell.dev/?profile=default" \
-            --max-time 10 || echo "000")
-          echo "HTTP status: $STATUS"
-          if [ "$STATUS" = "200" ]; then
-            echo "Cloud Shell alive"
-          else
-            echo "Cloud Shell sleeping or unreachable (status: $STATUS)"
-          fi
+          gcloud cloud-shell ssh --project=re-v-app \
+            --authorize-session \
+            --command="curl -sf http://localhost:20128/health && echo ' alive'" \
+            -- -o StrictHostKeyChecking=no -o ConnectTimeout=10 \
+            2>&1 || echo "Cloud Shell sleeping"
